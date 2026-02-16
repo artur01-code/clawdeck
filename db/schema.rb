@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_16_141800) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_16_143700) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -170,6 +170,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_16_141800) do
     t.integer "impact", default: 0, null: false
     t.string "name"
     t.integer "original_position"
+    t.boolean "pending_agent_registration", default: false, null: false
     t.integer "position"
     t.integer "priority", default: 0, null: false
     t.integer "project_id"
@@ -183,6 +184,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_16_141800) do
     t.index ["assigned_to_agent"], name: "index_tasks_on_assigned_to_agent"
     t.index ["blocked"], name: "index_tasks_on_blocked"
     t.index ["board_id"], name: "index_tasks_on_board_id"
+    t.index ["pending_agent_registration"], name: "index_tasks_on_pending_agent_registration"
     t.index ["position"], name: "index_tasks_on_position"
     t.index ["project_id"], name: "index_tasks_on_project_id"
     t.index ["status"], name: "index_tasks_on_status"
@@ -202,6 +204,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_16_141800) do
     t.string "email_address", null: false
     t.string "password_digest"
     t.string "provider"
+    t.jsonb "registered_agents", default: [], null: false
     t.string "uid"
     t.datetime "updated_at", null: false
     t.index ["email_address"], name: "index_users_on_email_address", unique: true

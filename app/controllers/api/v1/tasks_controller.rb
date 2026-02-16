@@ -59,7 +59,36 @@ module Api
       def assign
         set_task_activity_info(@task)
         agent_name = params.dig(:task, :assigned_agent_name) || params[:assigned_agent_name]
-        @task.update!(assigned_to_agent: true, assigned_at: Time.current, assigned_agent_name: agent_name)
+        
+        # Check if agent is registered
+        if agent_name.present? && !current_user.agent_registered?(agent_name)
+          # Mark task as pending agent registration
+          @task.update!(
+            assigned_to_agent: true, 
+            assigned_at: Time.current,
+            assigned_agent_name: agent_name,
+            pending_agent_registration: true
+          )
+          
+          # Create meta-task to spawn the sub-agent
+          manager_agent = current_user.manager_agent_name
+          board = @task.board
+          meta_task = board.tasks.create!(
+            user: current_user,
+            name: "🔧 Spawn sub-agent: #{agent_name}",
+            description: "Task '#{@task.name}' is assigned to '#{agent_name}' but this agent is not registered yet.\n\nPlease spawn a new session for agent '#{agent_name}' and ensure it polls the ClawDeck API with:\n\nGET /tasks?assigned=true&agent=#{agent_name}\n\nOnce the agent registers, the original task will be released automatically.",
+            status: :up_next,
+            priority: :high,
+            assigned_to_agent: true,
+            assigned_at: Time.current,
+            assigned_agent_name: manager_agent
+          )
+          meta_task.activity_source = "api"
+          meta_task.save!
+        else
+          @task.update!(assigned_to_agent: true, assigned_at: Time.current, assigned_agent_name: agent_name)
+        end
+        
         render json: task_json(@task)
       end
 
@@ -72,6 +101,11 @@ module Api
 
       # GET /api/v1/tasks - all tasks for current user
       def index
+        # Register agent on first poll
+        if params[:agent].present?
+          current_user.register_agent(params[:agent])
+        end
+        
         @tasks = current_user.tasks
 
         # Filter by board
@@ -106,6 +140,8 @@ module Api
         if params[:assigned].present?
           assigned = ActiveModel::Type::Boolean.new.cast(params[:assigned])
           @tasks = @tasks.where(assigned_to_agent: assigned)
+          # Exclude tasks pending agent registration
+          @tasks = @tasks.where(pending_agent_registration: false)
           # Filter by specific agent if requested
           if params[:agent].present?
             @tasks = @tasks.where(assigned_agent_name: params[:agent])
@@ -205,6 +241,7 @@ module Api
           position: task.position,
           assigned_to_agent: task.assigned_to_agent,
           assigned_agent_name: task.assigned_agent_name,
+          pending_agent_registration: task.pending_agent_registration,
           assigned_at: task.assigned_at&.iso8601,
           agent_claimed_at: task.agent_claimed_at&.iso8601,
           board_id: task.board_id,

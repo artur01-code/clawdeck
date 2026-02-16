@@ -205,7 +205,17 @@
 
     <%# Agent Assignment Badge %>
     <% if task.assigned_to_agent? %>
-      <span class="text-xs" title="Assigned to <%= task.user.agent_name || 'Agent' %>"><%= task.user.agent_emoji || "🦞" %></span>
+      <% if task.pending_agent_registration? %>
+        <span class="flex items-center gap-1 text-xs text-yellow-500" title="Waiting for <%= task.assigned_agent_name %> to register">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3 animate-pulse">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+          </svg>
+        </span>
+      <% else %>
+        <% assigned_agent = task.user.available_agents.find { |a| a.is_a?(Hash) && a["name"] == task.assigned_agent_name } %>
+        <% agent_emoji = assigned_agent ? assigned_agent["emoji"] : (task.user.agent_emoji || "🦞") %>
+        <span class="text-xs" title="Assigned to <%= task.assigned_agent_name || task.user.agent_name || 'Agent' %>"><%= agent_emoji %></span>
+      <% end %>
     <% end %>
   </div>
   <% end %>

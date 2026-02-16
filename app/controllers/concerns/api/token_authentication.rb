@@ -39,6 +39,9 @@ module Api
       updates[:agent_emoji] = agent_emoji if agent_emoji.present?
 
       current_user.update_columns(updates)
+      
+      # Register agent if first time polling
+      current_user.register_agent(agent_name) if agent_name.present?
     end
   end
 end

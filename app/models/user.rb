@@ -82,6 +82,28 @@ class User < ApplicationRecord
     oauth_user? && !password_user?
   end
 
+  # Register an agent (called when agent polls for first time)
+  def register_agent(agent_name)
+    return if agent_name.blank?
+    return if agent_registered?(agent_name)
+    
+    update_column(:registered_agents, (registered_agents || []) + [agent_name])
+    
+    # Release tasks that were waiting for this agent
+    tasks.where(assigned_agent_name: agent_name, pending_agent_registration: true)
+         .update_all(pending_agent_registration: false)
+  end
+
+  # Check if agent is registered
+  def agent_registered?(agent_name)
+    (registered_agents || []).include?(agent_name)
+  end
+
+  # Get manager agent (first registered or fallback to agent_name)
+  def manager_agent_name
+    (registered_agents || []).first || agent_name || "Main"
+  end
+
   private
 
   def password_required?

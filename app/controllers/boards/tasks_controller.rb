@@ -60,7 +60,34 @@ class Boards::TasksController < ApplicationController
   def assign
     @task.activity_source = "web"
     agent_name = params[:task]&.dig(:assigned_agent_name) || params[:assigned_agent_name]
-    @task.assign_to_agent!(agent_name)
+    
+    # Check if agent is registered
+    if agent_name.present? && !current_user.agent_registered?(agent_name)
+      # Mark task as pending agent registration
+      @task.update!(
+        assigned_to_agent: true, 
+        assigned_at: Time.current,
+        assigned_agent_name: agent_name,
+        pending_agent_registration: true
+      )
+      
+      # Create meta-task to spawn the sub-agent
+      manager_agent = current_user.manager_agent_name
+      meta_task = @board.tasks.create!(
+        user: current_user,
+        name: "🔧 Spawn sub-agent: #{agent_name}",
+        description: "Task '#{@task.name}' is assigned to '#{agent_name}' but this agent is not registered yet.\n\nPlease spawn a new session for agent '#{agent_name}' and ensure it polls the ClawDeck API with:\n\nGET /tasks?assigned=true&agent=#{agent_name}\n\nOnce the agent registers, the original task will be released automatically.",
+        status: :up_next,
+        priority: :high,
+        assigned_to_agent: true,
+        assigned_at: Time.current,
+        assigned_agent_name: manager_agent,
+        activity_source: "web"
+      )
+    else
+      @task.assign_to_agent!(agent_name)
+    end
+    
     respond_to do |format|
       format.turbo_stream do
         render turbo_stream: [

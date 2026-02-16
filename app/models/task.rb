@@ -42,10 +42,37 @@ class Task < ApplicationRecord
   # Agent assignment methods
   def assign_to_agent!(agent_name = nil)
     update!(assigned_to_agent: true, assigned_at: Time.current, assigned_agent_name: agent_name)
+    check_agent_registration! if agent_name.present?
   end
 
   def unassign_from_agent!
-    update!(assigned_to_agent: false, assigned_at: nil, assigned_agent_name: nil)
+    update!(assigned_to_agent: false, assigned_at: nil, assigned_agent_name: nil, pending_agent_registration: false)
+  end
+
+  # Check if assigned agent is registered, if not create spawn task
+  def check_agent_registration!
+    return if assigned_agent_name.blank?
+    return if user.agent_registered?(assigned_agent_name)
+    
+    # Mark this task as pending agent registration
+    update_column(:pending_agent_registration, true)
+    
+    # Create spawn task for manager agent
+    manager = user.manager_agent_name
+    spawn_task = user.tasks.create!(
+      name: "🔧 Spawn sub-agent: #{assigned_agent_name}",
+      description: "Create and start a new sub-agent with name '#{assigned_agent_name}' to handle assigned tasks.\n\nOnce spawned, the agent should poll with:\n`GET /tasks?assigned=true&agent=#{assigned_agent_name}`",
+      board: board,
+      status: :up_next,
+      priority: :high,
+      assigned_to_agent: true,
+      assigned_agent_name: manager,
+      assigned_at: Time.current,
+      activity_source: "system"
+    )
+    
+    # Auto-register manager if first time
+    user.register_agent(manager) unless user.agent_registered?(manager)
   end
 
   private
