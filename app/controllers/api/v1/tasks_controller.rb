@@ -58,14 +58,15 @@ module Api
       # PATCH /api/v1/tasks/:id/assign - assign task to agent
       def assign
         set_task_activity_info(@task)
-        @task.update!(assigned_to_agent: true, assigned_at: Time.current)
+        agent_name = params.dig(:task, :assigned_agent_name) || params[:assigned_agent_name]
+        @task.update!(assigned_to_agent: true, assigned_at: Time.current, assigned_agent_name: agent_name)
         render json: task_json(@task)
       end
 
       # PATCH /api/v1/tasks/:id/unassign - unassign task from agent
       def unassign
         set_task_activity_info(@task)
-        @task.update!(assigned_to_agent: false, assigned_at: nil)
+        @task.update!(assigned_to_agent: false, assigned_at: nil, assigned_agent_name: nil)
         render json: task_json(@task)
       end
 
@@ -105,6 +106,10 @@ module Api
         if params[:assigned].present?
           assigned = ActiveModel::Type::Boolean.new.cast(params[:assigned])
           @tasks = @tasks.where(assigned_to_agent: assigned)
+          # Filter by specific agent if requested
+          if params[:agent].present?
+            @tasks = @tasks.where(assigned_agent_name: params[:agent])
+          end
         end
 
         # Order by assigned_at for assigned tasks, otherwise by status then position
@@ -182,7 +187,7 @@ module Api
       end
 
       def task_params
-        params.require(:task).permit(:name, :description, :priority, :due_date, :status, :blocked, :board_id, tags: [])
+        params.require(:task).permit(:name, :description, :priority, :due_date, :status, :blocked, :board_id, :assigned_agent_name, tags: [])
       end
 
       def task_json(task)
@@ -199,6 +204,7 @@ module Api
           due_date: task.due_date&.iso8601,
           position: task.position,
           assigned_to_agent: task.assigned_to_agent,
+          assigned_agent_name: task.assigned_agent_name,
           assigned_at: task.assigned_at&.iso8601,
           agent_claimed_at: task.agent_claimed_at&.iso8601,
           board_id: task.board_id,

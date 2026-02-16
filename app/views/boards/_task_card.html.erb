@@ -14,27 +14,62 @@
   <% if has_current_user %>
     <button data-dropdown-target="button" class="hidden" aria-expanded="false"></button>
     <div data-dropdown-target="menu" class="hidden fixed z-[100] min-w-[160px] bg-bg-elevated border border-border rounded-lg shadow-lg py-1">
-      <%# Agent Assignment %>
+      <%# Agent Assignment - Multi-Agent Support %>
       <% agent_connected = current_user.agent_last_active_at.present? %>
       <% if agent_connected %>
-        <% agent_emoji = current_user.agent_emoji || "🦞" %>
-        <% agent_name = current_user.agent_name || "Agent" %>
         <% if task.assigned_to_agent? %>
+          <div class="px-3 py-2 text-sm text-content-muted border-b border-border">
+            <span class="flex items-center gap-2">
+              <span><%= current_user.agent_emoji || "🦞" %></span>
+              Assigned to: <strong><%= task.assigned_agent_name || current_user.agent_name || "Agent" %></strong>
+            </span>
+          </div>
           <%= button_to unassign_board_task_path(task.board, task),
               method: :patch,
               data: { action: "click->dropdown#close" },
-              class: "w-full flex items-center gap-2 px-3 py-2 text-sm text-content-secondary hover:bg-bg-hover transition-colors" do %>
-            <span class="w-4 text-center"><%= agent_emoji %></span>
-            Unassign from <%= agent_name %>
+              class: "w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors" do %>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+            Unassign
           <% end %>
         <% else %>
-          <%= button_to assign_board_task_path(task.board, task),
-              method: :patch,
-              data: { action: "click->dropdown#close" },
-              class: "w-full flex items-center gap-2 px-3 py-2 text-sm text-content-secondary hover:bg-bg-hover transition-colors" do %>
-            <span class="w-4 text-center"><%= agent_emoji %></span>
-            Assign to <%= agent_name %>
-          <% end %>
+          <%# Agent selection submenu %>
+          <div class="relative group/agent">
+            <button type="button" class="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-content-secondary hover:bg-bg-hover transition-colors">
+              <span class="flex items-center gap-2">
+                <span><%= current_user.agent_emoji || "🦞" %></span>
+                Assign to Agent
+              </span>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+              </svg>
+            </button>
+
+            <%# Submenu - Get list of known agents %>
+            <% known_agents = current_user.tasks.where(assigned_to_agent: true).pluck(:assigned_agent_name).compact.uniq.sort %>
+            <% default_agent = current_user.agent_name %>
+            <% all_agents = [default_agent, *known_agents].compact.uniq %>
+
+            <div class="absolute left-full top-0 ml-1 hidden group-hover/agent:block min-w-[160px] bg-bg-elevated border border-border rounded-lg shadow-lg py-1 z-[101]">
+              <% if all_agents.any? %>
+                <% all_agents.each do |agent| %>
+                  <%= button_to assign_board_task_path(task.board, task),
+                      method: :patch,
+                      params: { task: { assigned_agent_name: agent } },
+                      data: { action: "click->dropdown#close" },
+                      class: "w-full flex items-center gap-2 px-3 py-2 text-sm text-content-secondary hover:bg-bg-hover transition-colors" do %>
+                    <span><%= current_user.agent_emoji || "🦞" %></span>
+                    <%= agent %>
+                  <% end %>
+                <% end %>
+              <% else %>
+                <div class="px-3 py-2 text-xs text-content-muted">
+                  No agents yet
+                </div>
+              <% end %>
+            </div>
+          </div>
         <% end %>
         <div class="border-t border-border my-1"></div>
       <% end %>

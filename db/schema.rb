@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_01_31_142501) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_16_140600) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -155,6 +155,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_31_142501) do
 
   create_table "tasks", force: :cascade do |t|
     t.datetime "agent_claimed_at"
+    t.string "assigned_agent_name"
     t.datetime "assigned_at"
     t.boolean "assigned_to_agent", default: false, null: false
     t.boolean "blocked", default: false, null: false
@@ -178,6 +179,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_31_142501) do
     t.bigint "task_list_id"
     t.datetime "updated_at", null: false
     t.integer "user_id"
+    t.index ["assigned_agent_name"], name: "index_tasks_on_assigned_agent_name"
     t.index ["assigned_to_agent"], name: "index_tasks_on_assigned_to_agent"
     t.index ["blocked"], name: "index_tasks_on_blocked"
     t.index ["board_id"], name: "index_tasks_on_board_id"

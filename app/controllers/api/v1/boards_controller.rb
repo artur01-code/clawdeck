@@ -81,7 +81,8 @@ module Api
               tags: task.tags || [],
               completed: task.completed,
               position: task.position,
-              assigned_to_agent: task.assigned_to_agent
+              assigned_to_agent: task.assigned_to_agent,
+              assigned_agent_name: task.assigned_agent_name
             }
           end
         end

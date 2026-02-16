@@ -32,17 +32,20 @@ class Task < ApplicationRecord
   # Order incomplete tasks by position, completed tasks by completion time (most recent first)
   scope :incomplete, -> { where(completed: false).reorder(position: :asc) }
   scope :completed, -> { where(completed: true).reorder(completed_at: :desc) }
-  scope :assigned_to_agent, -> { where(assigned_to_agent: true).reorder(assigned_at: :asc) }
+  scope :assigned_to_agent, ->(agent_name = nil) { 
+    query = where(assigned_to_agent: true).reorder(assigned_at: :asc)
+    agent_name.present? ? query.where(assigned_agent_name: agent_name) : query
+  }
   scope :unassigned, -> { where(assigned_to_agent: false) }
   default_scope { order(completed: :asc, position: :asc) }
 
   # Agent assignment methods
-  def assign_to_agent!
-    update!(assigned_to_agent: true, assigned_at: Time.current)
+  def assign_to_agent!(agent_name = nil)
+    update!(assigned_to_agent: true, assigned_at: Time.current, assigned_agent_name: agent_name)
   end
 
   def unassign_from_agent!
-    update!(assigned_to_agent: false, assigned_at: nil)
+    update!(assigned_to_agent: false, assigned_at: nil, assigned_agent_name: nil)
   end
 
   private
