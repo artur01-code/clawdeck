@@ -46,21 +46,28 @@
               </svg>
             </button>
 
-            <%# Submenu - Get list of known agents %>
-            <% known_agents = current_user.tasks.where(assigned_to_agent: true).pluck(:assigned_agent_name).compact.uniq.sort %>
-            <% default_agent = current_user.agent_name %>
-            <% all_agents = [default_agent, *known_agents].compact.uniq %>
+            <%# Submenu - Get list of available agents %>
+            <% default_agents = [
+              {"name" => "PO", "emoji" => "📋"},
+              {"name" => "Designer", "emoji" => "🎨"},
+              {"name" => "Swift-Dev", "emoji" => "📱"},
+              {"name" => "Backend-Dev", "emoji" => "⚙️"},
+              {"name" => "QA", "emoji" => "✅"}
+            ] %>
+            <% available_agents = current_user.available_agents.presence || default_agents %>
 
             <div class="absolute left-full top-0 ml-1 hidden group-hover/agent:block min-w-[160px] bg-bg-elevated border border-border rounded-lg shadow-lg py-1 z-[101]">
-              <% if all_agents.any? %>
-                <% all_agents.each do |agent| %>
+              <% if available_agents.any? %>
+                <% available_agents.each do |agent| %>
+                  <% agent_name = agent.is_a?(Hash) ? agent["name"] : agent %>
+                  <% agent_emoji = agent.is_a?(Hash) ? (agent["emoji"] || "🦞") : "🦞" %>
                   <%= button_to assign_board_task_path(task.board, task),
                       method: :patch,
-                      params: { task: { assigned_agent_name: agent } },
+                      params: { task: { assigned_agent_name: agent_name } },
                       data: { action: "click->dropdown#close" },
                       class: "w-full flex items-center gap-2 px-3 py-2 text-sm text-content-secondary hover:bg-bg-hover transition-colors" do %>
-                    <span><%= current_user.agent_emoji || "🦞" %></span>
-                    <%= agent %>
+                    <span><%= agent_emoji %></span>
+                    <%= agent_name %>
                   <% end %>
                 <% end %>
               <% else %>

@@ -1,28 +1,48 @@
-<%# Agent assignment button for task panel %>
+<%# Agent assignment for task panel - Multi-Agent Support %>
 <% agent_connected = current_user.agent_last_active_at.present? %>
-<% agent_name = current_user.agent_name || "Agent" %>
-<% agent_emoji = agent_connected ? (current_user.agent_emoji || "🦞") : "🦞" %>
+<% default_agents = [
+  {"name" => "PO", "emoji" => "📋"},
+  {"name" => "Designer", "emoji" => "🎨"},
+  {"name" => "Swift-Dev", "emoji" => "📱"},
+  {"name" => "Backend-Dev", "emoji" => "⚙️"},
+  {"name" => "QA", "emoji" => "✅"}
+] %>
+<% available_agents = current_user.available_agents.presence || default_agents %>
 
-<div id="task_<%= task.id %>_agent_assignment" class="flex items-center justify-between pb-4 -mt-2">
-  <span class="text-sm text-content-muted">Agent</span>
+<div id="task_<%= task.id %>_agent_assignment" class="pb-4 -mt-2">
+  <div class="flex items-center justify-between mb-2">
+    <span class="text-sm text-content-muted">Agent</span>
+    
+    <% if task.assigned_to_agent? %>
+      <% assigned_agent = available_agents.find { |a| a.is_a?(Hash) && a["name"] == task.assigned_agent_name } %>
+      <% agent_emoji = assigned_agent ? assigned_agent["emoji"] : "🦞" %>
+      <%= button_to unassign_board_task_path(board, task),
+          method: :patch,
+          class: "cursor-pointer inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-accent/20 text-accent hover:bg-accent/30 transition-colors",
+          title: "Unassign from #{task.assigned_agent_name}" do %>
+        <span><%= agent_emoji %></span>
+        <span><%= task.assigned_agent_name %></span>
+      <% end %>
+    <% end %>
+  </div>
 
-  <% if task.assigned_to_agent? %>
-    <%= button_to unassign_board_task_path(board, task),
-        method: :patch,
-        class: "cursor-pointer inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-accent/20 text-accent hover:bg-accent/30 transition-colors",
-        title: "Unassign from #{agent_name}" do %>
-      <span><%= agent_emoji %></span>
-      <span>Assigned</span>
-    <% end %>
-  <% elsif agent_connected %>
-    <%= button_to assign_board_task_path(board, task),
-        method: :patch,
-        class: "cursor-pointer inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-bg-elevated hover:bg-bg-hover text-content-secondary transition-colors",
-        title: "Assign to #{agent_name}" do %>
-      <span><%= agent_emoji %></span>
-      <span>Assign</span>
-    <% end %>
-  <% else %>
+  <% if agent_connected && !task.assigned_to_agent? %>
+    <%# Show list of available agents to assign %>
+    <div class="flex flex-wrap gap-1.5">
+      <% available_agents.each do |agent| %>
+        <% agent_name = agent.is_a?(Hash) ? agent["name"] : agent %>
+        <% agent_emoji = agent.is_a?(Hash) ? (agent["emoji"] || "🦞") : "🦞" %>
+        <%= button_to assign_board_task_path(board, task),
+            method: :patch,
+            params: { task: { assigned_agent_name: agent_name } },
+            class: "cursor-pointer inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-bg-elevated hover:bg-bg-hover text-content-secondary transition-colors",
+            title: "Assign to #{agent_name}" do %>
+          <span><%= agent_emoji %></span>
+          <span><%= agent_name %></span>
+        <% end %>
+      <% end %>
+    </div>
+  <% elsif !agent_connected %>
     <span class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs text-content-muted bg-bg-elevated cursor-not-allowed" title="Connect an agent in Settings">
       <span>🦞</span>
       <span>No agent</span>

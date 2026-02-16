@@ -18,7 +18,7 @@ module Api
       private
 
       def settings_params
-        params.permit(:agent_name, :agent_emoji, :agent_auto_mode)
+        params.permit(:agent_name, :agent_emoji, :agent_auto_mode, available_agents: [])
       end
 
       def settings_json
@@ -26,6 +26,7 @@ module Api
           agent_name: current_user.agent_name || "OpenClaw",
           agent_emoji: current_user.agent_emoji || "🦞",
           agent_auto_mode: current_user.agent_auto_mode,
+          available_agents: current_user.available_agents || [],
           agent_status: agent_status,
           email: current_user.email_address
         }
