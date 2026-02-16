@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_16_143700) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_16_145600) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -40,6 +40,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_16_143700) do
     t.bigint "blob_id", null: false
     t.string "variation_digest", null: false
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
+
+  create_table "agents", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "emoji"
+    t.boolean "is_dev", default: false, null: false
+    t.string "name", null: false
+    t.string "role_type"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["user_id", "name"], name: "index_agents_on_user_id_and_name", unique: true
+    t.index ["user_id"], name: "index_agents_on_user_id"
   end
 
   create_table "api_tokens", force: :cascade do |t|
@@ -97,6 +109,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_16_143700) do
     t.index ["channel"], name: "index_solid_cable_messages_on_channel"
     t.index ["channel_hash"], name: "index_solid_cable_messages_on_channel_hash"
     t.index ["created_at"], name: "index_solid_cable_messages_on_created_at"
+  end
+
+  create_table "subtasks", force: :cascade do |t|
+    t.jsonb "artifact_targets", default: []
+    t.string "assigned_agent_name", null: false
+    t.string "blocked_reason"
+    t.datetime "created_at", null: false
+    t.jsonb "depends_on_subtask_ids", default: []
+    t.text "notes"
+    t.boolean "pending_agent_registration", default: false, null: false
+    t.string "role"
+    t.integer "status", default: 0, null: false
+    t.string "subtask_id", null: false
+    t.bigint "task_id", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["assigned_agent_name"], name: "index_subtasks_on_assigned_agent_name"
+    t.index ["pending_agent_registration"], name: "index_subtasks_on_pending_agent_registration"
+    t.index ["status"], name: "index_subtasks_on_status"
+    t.index ["subtask_id"], name: "index_subtasks_on_subtask_id", unique: true
+    t.index ["task_id"], name: "index_subtasks_on_task_id"
+    t.index ["user_id"], name: "index_subtasks_on_user_id"
   end
 
   create_table "tags", force: :cascade do |t|
@@ -168,18 +202,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_16_143700) do
     t.date "due_date"
     t.integer "effort", default: 0, null: false
     t.integer "impact", default: 0, null: false
+    t.boolean "is_development_ticket", default: false, null: false
     t.string "name"
+    t.jsonb "orchestration_state", default: {"blocked_reason" => nil, "subtasks_created" => false, "current_subtask_index" => 0}
     t.integer "original_position"
     t.boolean "pending_agent_registration", default: false, null: false
     t.integer "position"
     t.integer "priority", default: 0, null: false
     t.integer "project_id"
     t.integer "reach", default: 0, null: false
+    t.jsonb "required_agents", default: []
     t.integer "status", default: 0, null: false
     t.string "tags", default: [], array: true
     t.bigint "task_list_id"
+    t.string "ticket_id"
     t.datetime "updated_at", null: false
     t.integer "user_id"
+    t.string "workflow_mode", default: "single"
     t.index ["assigned_agent_name"], name: "index_tasks_on_assigned_agent_name"
     t.index ["assigned_to_agent"], name: "index_tasks_on_assigned_to_agent"
     t.index ["blocked"], name: "index_tasks_on_blocked"
@@ -189,7 +228,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_16_143700) do
     t.index ["project_id"], name: "index_tasks_on_project_id"
     t.index ["status"], name: "index_tasks_on_status"
     t.index ["task_list_id"], name: "index_tasks_on_task_list_id"
+    t.index ["ticket_id"], name: "index_tasks_on_ticket_id"
     t.index ["user_id"], name: "index_tasks_on_user_id"
+    t.index ["workflow_mode"], name: "index_tasks_on_workflow_mode"
   end
 
   create_table "users", force: :cascade do |t|
@@ -213,10 +254,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_16_143700) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "agents", "users"
   add_foreign_key "api_tokens", "users"
   add_foreign_key "boards", "users"
   add_foreign_key "projects", "users"
   add_foreign_key "sessions", "users"
+  add_foreign_key "subtasks", "tasks"
+  add_foreign_key "subtasks", "users"
   add_foreign_key "tags", "projects"
   add_foreign_key "tags", "users"
   add_foreign_key "task_activities", "tasks"

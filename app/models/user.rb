@@ -5,6 +5,7 @@ class User < ApplicationRecord
   has_many :boards, dependent: :destroy
   has_many :tasks, dependent: :destroy
   has_many :api_tokens, dependent: :destroy
+  has_many :agents, dependent: :destroy
   has_one_attached :avatar
 
   # Primary API token for agent integration
@@ -19,6 +20,7 @@ class User < ApplicationRecord
   validates :password, confirmation: true, if: :password_required?
 
   after_create_commit :create_onboarding_board
+  after_create_commit :ensure_default_agents
 
   validates :email_address, presence: true,
                            uniqueness: { case_sensitive: false },
@@ -113,6 +115,10 @@ class User < ApplicationRecord
 
   def create_onboarding_board
     Board.create_onboarding_for(self)
+  end
+  
+  def ensure_default_agents
+    Agent.ensure_defaults_for_user(self)
   end
 
   def avatar_changed?

@@ -5,8 +5,18 @@ Rails.application.routes.draw do
       resource :settings, only: [ :show, :update ]
 
       resources :boards, only: [ :index, :show, :create, :update, :destroy ]
+      
+      resources :agents, only: [ :index, :create, :update, :destroy ]
+      
+      resources :subtasks, only: [ :show, :update ] do
+        member do
+          patch :complete
+        end
+      end
 
       resources :tasks, only: [ :index, :show, :create, :update, :destroy ] do
+        resources :subtasks, only: [ :index ]
+        
         collection do
           get :next
           get :pending_attention

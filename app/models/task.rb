@@ -2,6 +2,7 @@ class Task < ApplicationRecord
   belongs_to :user
   belongs_to :board
   has_many :activities, class_name: "TaskActivity", dependent: :destroy
+  has_many :subtasks, dependent: :destroy
 
   enum :priority, { none: 0, low: 1, medium: 2, high: 3 }, default: :none, prefix: true
   enum :status, { inbox: 0, up_next: 1, in_progress: 2, in_review: 3, done: 4 }, default: :inbox
@@ -22,6 +23,7 @@ class Task < ApplicationRecord
   after_update_commit :broadcast_update
   after_destroy_commit :broadcast_destroy
   after_create :record_creation_activity
+  after_create :create_subtasks_if_multi_agent
   after_update :record_update_activities
 
   # Position management - acts_as_list functionality without the gem
@@ -200,5 +202,120 @@ class Task < ApplicationRecord
 
   def broadcast_to_board(action:, target:, **options)
     Turbo::StreamsChannel.broadcast_action_to(board_stream_name, action: action, target: target, **options)
+  end
+  
+  # Multi-agent orchestration methods
+  def multi_agent?
+    workflow_mode == "multi_agent"
+  end
+  
+  def create_subtasks!
+    return if orchestration_state["subtasks_created"]
+    return unless multi_agent?
+    return if required_agents.blank?
+    
+    # Generate ticket_id if not present
+    self.ticket_id ||= "TASK-#{id}"
+    save!
+    
+    # Order agents: PO -> UX -> DEV -> QA/Others
+    ordered_agents = order_agents_for_workflow(required_agents)
+    
+    ordered_agents.each_with_index do |agent_name, index|
+      agent_record = user.agents.find_by(name: agent_name)
+      role = agent_record&.role_type || infer_role_from_name(agent_name)
+      
+      # Set artifact targets based on role
+      artifacts = case role
+      when "PO" then ["BACKLOG.md"]
+      when "UX" then ["DESIGN.md"]
+      when "DEV" then ["IMPLEMENTATION.md"]
+      when "QA" then ["QA.md"]
+      else []
+      end
+      
+      # First subtask is up_next, others are queued
+      initial_status = index == 0 ? :up_next : :queued
+      
+      # Set dependencies (sequential chain)
+      depends_on = index > 0 ? [subtasks[index - 1]&.subtask_id].compact : []
+      
+      subtask = subtasks.create!(
+        user: user,
+        assigned_agent_name: agent_name,
+        role: role,
+        status: initial_status,
+        artifact_targets: artifacts,
+        depends_on_subtask_ids: depends_on,
+        pending_agent_registration: !user.agent_registered?(agent_name)
+      )
+      
+      # Create spawn meta-task if agent not registered
+      if !user.agent_registered?(agent_name)
+        create_spawn_meta_task(agent_name, subtask)
+      end
+    end
+    
+    update_column(:orchestration_state, orchestration_state.merge("subtasks_created" => true))
+  end
+  
+  def unlock_next_subtask!
+    current_index = orchestration_state["current_subtask_index"] || 0
+    next_subtask = subtasks.order(:created_at)[current_index + 1]
+    
+    if next_subtask
+      next_subtask.update!(status: :up_next) if next_subtask.dependencies_met?
+      update_column(:orchestration_state, orchestration_state.merge("current_subtask_index" => current_index + 1))
+    else
+      # All subtasks done, mark parent done
+      update!(status: :done)
+    end
+  end
+  
+  def create_subtasks_if_multi_agent
+    create_subtasks! if multi_agent? && required_agents.present?
+  end
+  
+  private
+  
+  def order_agents_for_workflow(agents)
+    return agents unless is_development_ticket
+    
+    # Get agent records
+    agent_records = agents.map { |name| user.agents.find_by(name: name) }.compact
+    
+    # Order: PO first, then UX, then DEV, then QA
+    ordered = []
+    ordered += agent_records.select { |a| a.role_type == "PO" }.map(&:name)
+    ordered += agent_records.select { |a| a.role_type == "UX" }.map(&:name)
+    ordered += agent_records.select { |a| a.role_type == "DEV" }.map(&:name)
+    ordered += agent_records.select { |a| a.role_type == "QA" }.map(&:name)
+    ordered += (agents - ordered) # Add any remaining
+    ordered
+  end
+  
+  def infer_role_from_name(name)
+    case name.downcase
+    when /po|product/ then "PO"
+    when /ux|design/ then "UX"
+    when /dev|engineer/ then "DEV"
+    when /qa|test/ then "QA"
+    else "DEV"
+    end
+  end
+  
+  def create_spawn_meta_task(agent_name, subtask)
+    manager_agent = user.manager_agent_name
+    board.tasks.create!(
+      user: user,
+      name: "🔧 Spawn sub-agent: #{agent_name}",
+      description: "Subtask for '#{name}' requires agent '#{agent_name}' but this agent is not registered yet.\n\nPlease spawn a new session for agent '#{agent_name}' and ensure it polls:\n\nGET /tasks?assigned=true&agent=#{agent_name}\n\nSubtask ID: #{subtask.subtask_id}",
+      status: :up_next,
+      priority: :high,
+      assigned_to_agent: true,
+      assigned_at: Time.current,
+      assigned_agent_name: manager_agent,
+      activity_source: "system"
+    )
   end
 end

@@ -223,11 +223,15 @@ module Api
       end
 
       def task_params
-        params.require(:task).permit(:name, :description, :priority, :due_date, :status, :blocked, :board_id, :assigned_agent_name, tags: [])
+        params.require(:task).permit(
+          :name, :description, :priority, :due_date, :status, :blocked, :board_id, 
+          :assigned_agent_name, :is_development_ticket, :workflow_mode,
+          tags: [], required_agents: []
+        )
       end
 
       def task_json(task)
-        {
+        json = {
           id: task.id,
           name: task.name,
           description: task.description,
@@ -249,6 +253,20 @@ module Api
           created_at: task.created_at.iso8601,
           updated_at: task.updated_at.iso8601
         }
+        
+        # Add multi-agent fields if applicable
+        if task.respond_to?(:workflow_mode)
+          json.merge!(
+            ticket_id: task.ticket_id,
+            is_development_ticket: task.is_development_ticket,
+            required_agents: task.required_agents,
+            workflow_mode: task.workflow_mode,
+            orchestration_state: task.orchestration_state,
+            subtasks_count: task.subtasks.count
+          )
+        end
+        
+        json
       end
     end
   end
